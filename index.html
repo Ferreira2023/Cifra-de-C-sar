@@ -6,6 +6,23 @@
 <style>
 :root{color-scheme:light;--green:#005535;--gold:#d6a51e}*{box-sizing:border-box}body{margin:0;background:#f8fbf8;color:var(--green);font-family:Arial,Helvetica,sans-serif;min-height:100svh;overflow-x:hidden}body:before{content:"";position:fixed;inset:0 0 auto;height:11px;background:linear-gradient(100deg,#00492f 0%,#087044 57%,#d2a21e 57%,#ffe69a 100%)}main{width:min(100%,760px);margin:auto;padding:30px 20px 24px;text-align:center}h1{font-size:clamp(25px,4vw,36px);letter-spacing:-1px;margin:0 0 8px}p{font-size:15px;line-height:1.5;margin:0;color:#496a59}.wheel{width:min(100%,65svh,590px);margin:14px auto 12px;filter:drop-shadow(0 12px 20px #003e2514)}svg{width:100%;height:auto;display:block;overflow:visible;user-select:none;-webkit-user-select:none}#rotor{touch-action:none;cursor:grab;outline:none}#rotor:active{cursor:grabbing}#rotor:focus-visible .focus-ring{stroke:#087cc1;stroke-width:5}.controls{display:flex;justify-content:center;gap:12px}button{font:600 14px Arial;border:1px solid #c6d8cb;background:white;color:var(--green);border-radius:14px;padding:12px 18px;min-height:60px;display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:0 3px 0 #e4ece5;touch-action:manipulation}button:hover{background:#edf5ed;border-color:#86ae91}button:active{transform:translateY(2px);box-shadow:none}button:focus-visible{outline:3px solid #d6a51e;outline-offset:4px}.arrow{font-size:33px;line-height:1}.note{margin-top:17px;font-size:12px;color:#708478}@media(max-width:420px){main{padding:26px 12px 20px}.controls{gap:8px}button{padding:10px 12px;font-size:12px}.wheel{margin:22px auto}.note{font-size:11px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
 .author-link{display:block;margin:0 0 12px;text-align:right;color:var(--green);font-size:13px;font-weight:600;text-decoration:none}.author-link:hover{text-decoration:underline}.author-link:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+
+/* Controles: mantém o visual original e acrescenta o reinício central. */
+.controls{align-items:stretch}
+#reset-wheel{background:#eff6ef;border-color:#b2d0bd;box-shadow:0 3px 0 #dceadf}
+#reset-wheel:hover{background:#e3f0e7;border-color:#86ae91}
+.reset-icon{font-size:25px;line-height:1}
+/* Os três botões permanecem na mesma linha, mesmo em celulares estreitos. */
+@media(max-width:520px){
+ .controls{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:7px}
+ .controls button{min-width:0;min-height:64px;padding:9px 6px;gap:3px;justify-content:center}
+ .controls #ccw,.controls #cw,.controls #reset-wheel{flex-direction:column}
+ .controls #cw .arrow{order:-1}
+ .controls #reset-wheel{padding:9px 11px}
+ .controls .arrow{font-size:27px}
+ .controls .reset-icon{font-size:24px}
+}
+@media(max-width:340px){.controls button{font-size:11px}.controls #reset-wheel{padding-left:7px;padding-right:7px}}
 </style>
 </head>
 <body><main>
@@ -25,7 +42,11 @@
 <text text-anchor="middle" fill="#005535" font-family="Arial,sans-serif" font-weight="700"><tspan x="0" y="-23" font-size="28">CIFRA</tspan><tspan x="0" y="10" font-size="28">DE CÉSAR</tspan></text>
 <text id="shift" x="0" y="47" text-anchor="middle" fill="#977014" font-size="17" font-family="Arial,sans-serif" font-weight="700">N = 0</text><circle cy="86" r="5" fill="#004e32"/></g>
 </svg></div>
-<div class="controls"><button id="ccw" type="button" aria-label="Girar uma posição no sentido anti-horário"><span class="arrow" aria-hidden="true">↶</span>Anti-horário</button><button id="cw" type="button" aria-label="Girar uma posição no sentido horário">Horário<span class="arrow" aria-hidden="true">↷</span></button></div>
+<div class="controls">
+<button id="ccw" type="button" aria-label="Girar uma posição no sentido anti-horário"><span class="arrow" aria-hidden="true">↶</span>Anti-horário</button>
+<button id="reset-wheel" type="button" aria-label="Reiniciar o disco e voltar à posição inicial"><span class="reset-icon" aria-hidden="true">⟲</span>Reiniciar</button>
+<button id="cw" type="button" aria-label="Girar uma posição no sentido horário">Horário<span class="arrow" aria-hidden="true">↷</span></button>
+</div>
 <p class="note">O disco externo permanece fixo. Cada clique gira uma letra.</p>
 <div id="status" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></div>
 </main>
@@ -41,15 +62,96 @@ for(let i=0;i<26;i++){
  g.append(node('text',{x:rt*Math.cos(rad),y:rt*Math.sin(rad),'text-anchor':'middle','dominant-baseline':'central',transform:`rotate(${angle} ${rt*Math.cos(rad)} ${rt*Math.sin(rad)})`,fill:color,'font-family':'Arial,sans-serif','font-weight':700,'font-size':size},alphabet[i]));
  }
 }
-let rotation=0,drag=null;
+let rotation=0,drag=null,targetRotation=0,animationFrame=null;
 const mod=n=>((n%26)+26)%26;
-function draw(announce=false){rotor.setAttribute('transform',`rotate(${rotation})`);const shift=mod(-Math.round(rotation/step));document.getElementById('shift').textContent=`N = ${shift}`;rotor.setAttribute('aria-valuenow',shift);rotor.setAttribute('aria-valuetext',`Deslocamento ${shift}. A corresponde a ${alphabet[shift]}.`);if(announce)document.getElementById('status').textContent=`Deslocamento ${shift}. A corresponde a ${alphabet[shift]}.`}
-function turn(dir){if(drag)return;rotation=(Math.round(rotation/step)+dir)*step;draw(true)}
-document.getElementById('cw').addEventListener('click',()=>turn(1));document.getElementById('ccw').addEventListener('click',()=>turn(-1));
+const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+function draw(announce=false){
+ rotor.setAttribute('transform',`rotate(${rotation})`);
+ const shift=mod(-Math.round(rotation/step));
+ document.getElementById('shift').textContent=`N = ${shift}`;
+ rotor.setAttribute('aria-valuenow',shift);
+ rotor.setAttribute('aria-valuetext',`Deslocamento ${shift}. A corresponde a ${alphabet[shift]}.`);
+ if(announce)document.getElementById('status').textContent=`Deslocamento ${shift}. A corresponde a ${alphabet[shift]}.`;
+}
+function stopAnimation(){
+ if(animationFrame!==null)cancelAnimationFrame(animationFrame);
+ animationFrame=null;
+ targetRotation=rotation;
+}
+/* Anima a rotação real do SVG; o disco não salta instantaneamente.
+   Um clique durante outra animação soma a nova posição ao destino anterior. */
+function animateTo(target,duration=350,normalizeAtEnd=false){
+ if(animationFrame!==null)cancelAnimationFrame(animationFrame);
+ animationFrame=null;
+ const start=rotation,delta=target-start;
+ targetRotation=target;
+ if(reducedMotion.matches||Math.abs(delta)<0.0001){
+  rotation=normalizeAtEnd?0:target;
+  targetRotation=rotation;
+  draw(true);
+  return;
+ }
+ const startTime=performance.now();
+ function frame(now){
+  const t=Math.max(0,Math.min(1,(now-startTime)/duration));
+  const eased=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+  rotation=start+delta*eased;
+  draw();
+  if(t<1){animationFrame=requestAnimationFrame(frame)}
+  else{
+   animationFrame=null;
+   /* 360° e 0° têm a mesma aparência; normalizar evita acumular voltas. */
+   rotation=normalizeAtEnd?0:target;
+   targetRotation=rotation;
+   draw(true);
+  }
+ }
+ animationFrame=requestAnimationFrame(frame);
+}
+function turn(dir){
+ if(drag)return;
+ const next=Math.round(targetRotation/step)*step+dir*step;
+ animateTo(next,Math.min(660,350+Math.abs(next-rotation)*1.2));
+}
+function resetWheel(){
+ if(drag)return;
+ /* Volta ao alinhamento inicial pelo caminho angular mais curto. */
+ const closestZero=Math.round(rotation/360)*360;
+ animateTo(closestZero,Math.min(640,340+Math.abs(closestZero-rotation)*1.5),true);
+}
+document.getElementById('cw').addEventListener('click',()=>turn(1));
+document.getElementById('ccw').addEventListener('click',()=>turn(-1));
+document.getElementById('reset-wheel').addEventListener('click',resetWheel);
 function angle(e){const p=wheel.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const q=p.matrixTransform(wheel.getScreenCTM().inverse());return {angle:Math.atan2(q.y,q.x)*180/Math.PI,r:Math.hypot(q.x,q.y)}}
-rotor.addEventListener('pointerdown',e=>{if(drag||e.button!==0)return;const p=angle(e);if(p.r<35)return;drag={id:e.pointerId,last:p.angle};rotor.setPointerCapture(e.pointerId);rotor.focus({preventScroll:true});e.preventDefault()});
-rotor.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const p=angle(e);if(p.r<35)return;let delta=p.angle-drag.last;delta=((delta+540)%360)-180;rotation+=delta;drag.last=p.angle;draw()});
-function finish(e){if(!drag||drag.id!==e.pointerId)return;drag=null;rotation=Math.round(rotation/step)*step;draw(true);if(rotor.hasPointerCapture(e.pointerId))rotor.releasePointerCapture(e.pointerId)}
-rotor.addEventListener('pointerup',finish);rotor.addEventListener('pointercancel',finish);rotor.addEventListener('lostpointercapture',finish);
-rotor.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowUp'){e.preventDefault();turn(1)}else if(e.key==='ArrowLeft'||e.key==='ArrowDown'){e.preventDefault();turn(-1)}else if(e.key==='Home'){e.preventDefault();rotation=0;draw(true)}});draw();
+rotor.addEventListener('pointerdown',e=>{
+ if(drag||e.button!==0)return;
+ const p=angle(e);if(p.r<35)return;
+ stopAnimation();
+ drag={id:e.pointerId,last:p.angle};
+ rotor.setPointerCapture(e.pointerId);
+ rotor.focus({preventScroll:true});e.preventDefault();
+});
+rotor.addEventListener('pointermove',e=>{
+ if(!drag||drag.id!==e.pointerId)return;
+ const p=angle(e);if(p.r<35)return;
+ let delta=p.angle-drag.last;delta=((delta+540)%360)-180;
+ rotation+=delta;targetRotation=rotation;
+ drag.last=p.angle;draw();
+});
+function finish(e){
+ if(!drag||drag.id!==e.pointerId)return;
+ drag=null;
+ const snapped=Math.round(rotation/step)*step;
+ if(rotor.hasPointerCapture(e.pointerId))rotor.releasePointerCapture(e.pointerId);
+ animateTo(snapped,210);
+}
+rotor.addEventListener('pointerup',finish);
+rotor.addEventListener('pointercancel',finish);
+rotor.addEventListener('lostpointercapture',finish);
+rotor.addEventListener('keydown',e=>{
+ if(e.key==='ArrowRight'||e.key==='ArrowUp'){e.preventDefault();turn(1)}
+ else if(e.key==='ArrowLeft'||e.key==='ArrowDown'){e.preventDefault();turn(-1)}
+ else if(e.key==='Home'){e.preventDefault();resetWheel()}
+});
+draw();
 </script></body></html>
